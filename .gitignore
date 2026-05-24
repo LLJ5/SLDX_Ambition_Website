@@ -10,3 +10,19 @@ cache
 .idea
 .history/*
 *.code-workspace
+
+wechat-archive-tool/wechat_cookies.json
+wechat-archive-tool/__pycache__
+wechat-archive-tool/src/__pycache__
+wechat-archive-tool/articles
+
+doc/public/wechat-backups
+doc/public/原图备份
+
+# 公众号文章存档（图片太大，暂不提交）
+doc/public/wechat/articles/*
+!doc/public/wechat/articles/_shared/
+
+# Python 缓存
+scripts/__pycache__
+__pycache__
