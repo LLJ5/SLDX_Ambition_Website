@@ -1,15 +1,21 @@
 #js_content,#js_image_content{visibility:visible!important;opacity:1!important}
+.js_img_placeholder,.wx_img_placeholder{opacity:1!important}
+svg[viewbox="0 0 1 1"]{display:none!important}
+.rich_media_content section:has(>svg){background-color:transparent!important}
 .no_desc_title{opacity:1!important;visibility:visible!important;display:block!important;font-size:22px!important;line-height:1.5!important;font-weight:700!important}
 #js_ip_wording_wrp,#js_ip_wording{display:inline!important;opacity:1!important;visibility:visible!important}
 @media(max-width:768px){
-#js_article{display:grid!important;grid-template-rows:minmax(88px,auto) auto!important}
-.share_content_page_bd{grid-row:1!important;background:#fff!important}
+#js_article{display:grid!important;grid-template-rows:minmax(160px,300px) auto!important}
+.share_content_page_bd{grid-row:1!important;background:#fff!important;overflow:hidden!important}
 .share_content_page_hd{grid-row:2!important;overflow:hidden!important}
 .share_content_page_hd [style*="height"]{height:auto!important}
 .share_content_page_hd>*,.share_content_page_hd *>*,.share_content_page_bd,.share_content_page_bd>*{margin:0!important;padding:0!important}
 .swiper_switch_pc,.swiper_indicator_wrp_pc,.right-bottom-area,.share_media_swiper_point_tag_wrp,.share_media_swiper_function_area{display:none!important}
-.rich_media_meta_area_extra{padding-left:16px!important}
-h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:0!important}
+#js_image_content{display:flex!important;flex-direction:column!important}
+h1.rich_media_title{order:1;font-size:20px!important;padding:12px 16px!important;margin:0!important}
+.rich_media_meta_list{order:2;padding:4px 16px!important}
+.rich_media_meta_area_extra{padding:0!important}
+#js_image_desc{order:3;padding:8px 16px!important}
 }
 #js_novel_card,.novel-card,.novel-card__link,.novel-card__old-only,.novel-info{display:none!important}
 .share_media_swiper,.share_media_swiper_size_placeholder,.share_media_swiper_content,.img_swiper_area,.swiper_item,.swiper_item_img{max-width:100%!important}

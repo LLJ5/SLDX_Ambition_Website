@@ -1,0 +1,16 @@
+# Netscape HTTP Cookie File
+mp.weixin.qq.com	TRUE	/	TRUE	1814185484	ua_id	5RU3HzkqEkulU2PvAAAAAIxmGmsKd1_AUGIc9a8i-a8=
+mp.weixin.qq.com	TRUE	/	FALSE	1814068569	wxuin	79508569795440
+mp.weixin.qq.com	TRUE	/	TRUE	-1	uuid	9757ff8e54f5d489e3b35baeb3b4cb24
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	rand_info	CAESIMkEOg9tMLyxlt0mMcUsyP+rMwmmI6J1I3+5JPxKpONN
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	slave_bizuin	3000385631
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	data_bizuin	3000385631
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	bizuin	3000385631
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	data_ticket	g7MACS+bsCeX1UkPTIvdgQlkVmvhxbx/qi6UJxwVGbFD5FQ3eC14NenVlnThvJMD
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	slave_sid	UFVZVmFfMmFrbkdKN0o5OVpaRGdpSVE0VE03QVRoZzNjUVJQcm50a2JEY0toYkNiMDdQUWdyeEV3aTFPTEFDZk84WDJCV28wOFhNd0tYN3NSeTRRelJlOWpZVU9tVk1COFNfNUZCNXMycXkzQVVQU2lLeEh3Z21YNnZjbHlHd0k4NEhPVWRRdzRvelY1TmJi
+mp.weixin.qq.com	TRUE	/	TRUE	1779971088	slave_user	gh_4a479a36539e
+mp.weixin.qq.com	TRUE	/	TRUE	1814068582	xid	5191d3bad6124e4215d685a87af26ef1
+mp.weixin.qq.com	TRUE	/	TRUE	1814068582	mm_lang	zh_CN
+qq.com	TRUE	/	FALSE	1811134680	_clck	3000385631|1|g6b|0
+qq.com	TRUE	/	FALSE	1779711888	_clsk	elszy8|1779625488221|3|1|mp.weixin.qq.com/weheat-agent/payload/record
+mp.weixin.qq.com	TRUE	/	TRUE	1782293079	poc_sid	HFUVFGqjrGvJEZM5Hzox_rrZPhWhevT7wxhEXjUM

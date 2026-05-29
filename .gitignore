@@ -19,9 +19,13 @@ wechat-archive-tool/articles
 doc/public/wechat-backups
 doc/public/原图备份
 
-# 公众号文章存档（图片太大，暂不提交）
-doc/public/wechat/articles/*
-!doc/public/wechat/articles/_shared/
+# 公众号文章存档视频（不提交）
+doc/public/wechat/articles/**/*.mp4
+doc/public/wechat/articles/**/*.mov
+doc/public/wechat/articles/**/*.webm
+doc/public/wechat/articles/**/*.avi
+doc/public/wechat/articles/**/*.mkv
+doc/public/wechat/articles/**/*.flv
 
 # Python 缓存
 scripts/__pycache__

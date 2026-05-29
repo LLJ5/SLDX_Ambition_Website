@@ -136,6 +136,19 @@ class ArticleDownloader:
                     src = tag.get("src", "")
                     if f"vid={vid}" in src or vid in src:
                         tag["src"] = local_file
+            elif v["type"] == "mpvideo":
+                container = soup.find("span", class_="video_iframe")
+                if container and container.get("data-mpvid") == vid:
+                    parent = container.find_parent("section")
+                    if parent:
+                        vw = container.get("data-vw", "635")
+                        video_tag = soup.new_tag("video", controls="",
+                            preload="metadata",
+                            style=f"width:100%;max-width:{vw}px;border-radius:4px;background:#000",
+                            width=vw)
+                        source_tag = soup.new_tag("source", src=local_file, type="video/mp4")
+                        video_tag.append(source_tag)
+                        parent.replace_with(video_tag)
 
         with open(html_path, "w", encoding="utf-8") as f:
             html_str = str(soup)
@@ -184,23 +197,28 @@ class ArticleDownloader:
                 if "background-image" in st:
                     tag["style"] = re.sub(r'background-image:\s*url\([^)]+\)\s*;?', '', st)
 
-        if len(unique_urls) > 1:
-            desc_el = soup.find("p", id="js_image_desc")
-            if not desc_el:
-                desc_el = soup.find("p", class_=re.compile("share_notice"))
-            if desc_el and desc_el.parent:
-                gallery = soup.new_tag("div")
-                gallery["style"] = "margin-top:16px;"
-                for url in unique_urls:
-                    img_tag = soup.new_tag("img", src=url.split("?")[0])
-                    img_tag["style"] = "max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px;"
-                    img_tag["loading"] = "lazy"
-                    gallery.append(img_tag)
-                desc_el.insert_after(gallery)
-            for el in soup.find_all(class_="share_media_swiper"):
-                el.decompose()
-            for el in soup.find_all(class_=re.compile("swiper_indicator|swiper_dot|img_list_indicator")):
-                el.decompose()
+        if len(unique_urls) >= 1:
+            gallery = soup.new_tag("div")
+            gallery["style"] = "margin-top:16px;"
+            for url in unique_urls:
+                img_tag = soup.new_tag("img", src=url.split("?")[0])
+                img_tag["style"] = "max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px;"
+                img_tag["loading"] = "lazy"
+                gallery.append(img_tag)
+
+            scp = soup.find(class_="share_content_page")
+            bd = soup.find(class_="share_content_page_bd")
+            if scp and bd:
+                rc = soup.new_tag("div", **{"class": "rich_media_content"})
+                rc["id"] = "js_content"
+                rc["style"] = "visibility:visible;opacity:1;"
+                rc.append(gallery)
+                bd.insert_before(rc)
+
+        for el in soup.find_all(class_="share_media_swiper"):
+            el.decompose()
+        for el in soup.find_all(class_=re.compile("swiper_indicator|swiper_dot|img_list_indicator")):
+            el.decompose()
 
     async def _fetch_article_html(self, link):
         page = None
@@ -216,6 +234,18 @@ class ArticleDownloader:
             except Exception:
                 pass
             await asyncio.sleep(2)
+            # Scroll to trigger lazy-loaded images
+            try:
+                total_h = await page.evaluate('document.body.scrollHeight')
+                for pos in range(0, min(total_h, 30000) + 300, 300):
+                    await page.evaluate(f'window.scrollTo(0, {pos})')
+                    await asyncio.sleep(0.1)
+                await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                await asyncio.sleep(1)
+                await page.evaluate('window.scrollTo(0, 0)')
+                await asyncio.sleep(0.5)
+            except Exception:
+                pass
             try:
                 await page.wait_for_selector(
                     ".share_notice, .rich_media_title, .js_video_channel_title, #video_share_global_info",
@@ -328,6 +358,7 @@ class ArticleDownloader:
             "js_row_immersive_stream_wrap", "js_row_immersive_cover_img",
             "js_novel_link", "js_novel_cover_old", "js_novel_title_old",
             "js_author_name",
+            "wx_stream_article_slide_tip",
         ]
         for rid in remove_ids:
             for el in soup.find_all(id=rid):
@@ -410,6 +441,11 @@ class ArticleDownloader:
             el.decompose()
 
         head = soup.find("head")
+        if head is not None:
+            for style_tag in head.find_all("style"):
+                if style_tag.has_attr("id"):
+                    del style_tag["id"]
+
         if head is not None and not head.find("meta", attrs={"name": "viewport"}):
             meta = soup.new_tag("meta", name="viewport", content="width=device-width, initial-scale=1.0")
             head.insert(0, meta)
@@ -417,6 +453,24 @@ class ArticleDownloader:
         if head is not None:
             style = soup.new_tag("style")
             style.string = """#js_content,#js_image_content{visibility:visible!important;opacity:1!important}
+.js_img_placeholder,.wx_img_placeholder{opacity:1!important}
+svg[viewbox="0 0 1 1"]{display:none!important}
+.rich_media_content section:has(>svg){background-color:transparent!important}
+.no_desc_title{opacity:1!important;visibility:visible!important;display:block!important;font-size:22px!important;line-height:1.5!important;font-weight:700!important}
+#js_ip_wording_wrp,#js_ip_wording{display:inline!important;opacity:1!important;visibility:visible!important}
+@media(max-width:768px){
+#js_article{display:grid!important;grid-template-rows:minmax(160px,300px) auto!important}
+.share_content_page_bd{grid-row:1!important;background:#fff!important;overflow:hidden!important}
+.share_content_page_hd{grid-row:2!important;overflow:hidden!important}
+.share_content_page_hd [style*="height"]{height:auto!important}
+.share_content_page_hd>*,.share_content_page_hd *>*,.share_content_page_bd,.share_content_page_bd>*{margin:0!important;padding:0!important}
+.swiper_switch_pc,.swiper_indicator_wrp_pc,.right-bottom-area,.share_media_swiper_point_tag_wrp,.share_media_swiper_function_area{display:none!important}
+#js_image_content{display:flex!important;flex-direction:column!important}
+h1.rich_media_title{order:1;font-size:20px!important;padding:12px 16px!important;margin:0!important}
+.rich_media_meta_list{order:2;padding:4px 16px!important}
+.rich_media_meta_area_extra{padding:0!important}
+#js_image_desc{order:3;padding:8px 16px!important}
+}
 #js_novel_card,.novel-card,.novel-card__link,.novel-card__old-only,.novel-info{display:none!important}
 .share_media_swiper,.share_media_swiper_size_placeholder,.share_media_swiper_content,.img_swiper_area,.swiper_item,.swiper_item_img{max-width:100%!important}
 .swiper_indicator_wrp,.swiper_dot_wrp,.swiper_indicator_wrp_pc,#img_list_indicator{display:none!important}
@@ -432,20 +486,11 @@ body{margin:0;padding:0;background:#fff!important;-webkit-text-size-adjust:100%}
 .rich_media{margin:0!important;padding:0!important}
 .rich_media_inner{max-width:677px;margin:0 auto;padding:20px 16px}
 .rich_media_area_primary{position:static!important}
-.no_desc_title{opacity:1!important;visibility:visible!important;display:block!important;font-size:22px!important;line-height:1.5!important;font-weight:700!important}
-#js_ip_wording_wrp,#js_ip_wording{display:inline!important;opacity:1!important;visibility:visible!important}
-@media(max-width:768px){
-#js_article{display:grid!important;grid-template-rows:minmax(88px,auto) auto!important}
-.share_content_page_bd{grid-row:1!important;background:#fff!important}
-.share_content_page_hd{grid-row:2!important;overflow:hidden!important}
-.share_content_page_hd [style*="height"]{height:auto!important}
-.share_content_page_hd>*,.share_content_page_hd *>*,.share_content_page_bd,.share_content_page_bd>*{margin:0!important;padding:0!important}
-.swiper_switch_pc,.swiper_indicator_wrp_pc,.right-bottom-area,.share_media_swiper_point_tag_wrp,.share_media_swiper_function_area{display:none!important}
-.rich_media_meta_area_extra{padding-left:16px!important}
-h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:0!important}
-}
 :root{--new-title-color:rgba(0,0,0,.9);--weui-BG-0:#EDEDED;--weui-BG-1:#F7F7F7;--weui-BG-2:#FFFFFF;--weui-BG-3:#F7F7F7;--weui-BG-4:#4C4C4C;--weui-BG-5:#FFFFFF;--weui-FG-0:rgba(0,0,0,.9);--weui-FG-HALF:rgba(0,0,0,.9);--weui-FG-1:rgba(0,0,0,.5);--weui-FG-2:rgba(0,0,0,.3);--weui-FG-3:rgba(0,0,0,.1);--weui-FG-4:rgba(0,0,0,.15);--weui-RED:#FA5151;--weui-ORANGE:#FA9D3B;--weui-YELLOW:#FFC300;--weui-GREEN:#91D300;--weui-LIGHTGREEN:#95EC69;--weui-BRAND:#07C160;--weui-BLUE:#10AEFF;--weui-INDIGO:#1485EE;--weui-PURPLE:#6467F0;--weui-WHITE:#FFFFFF;--weui-LINK:#576B95;--weui-TEXTGREEN:#06AE56;--weui-FG:#000;--weui-BG:#FFFFFF;--weui-TAG-TEXT-ORANGE:#FA9D3B;--weui-TAG-BACKGROUND-ORANGE:rgba(250,157,59,.1);--weui-TAG-TEXT-GREEN:#06AE56;--weui-TAG-BACKGROUND-GREEN:rgba(6,174,86,.1);--weui-TAG-TEXT-BLUE:#10AEFF;--weui-TAG-BACKGROUND-BLUE:rgba(16,174,255,.1);--weui-TAG-TEXT-BLACK:rgba(0,0,0,.5);--weui-TAG-BACKGROUND-BLACK:rgba(0,0,0,.05);--weui-BTN-DISABLED-FONT-COLOR:rgba(0,0,0,.2);--weui-BTN-DEFAULT-BG:#F2F2F2;--weui-BTN-DEFAULT-COLOR:#06AE56;--weui-BTN-DEFAULT-ACTIVE-BG:#E6E6E6;--weui-DIALOG-LINE-COLOR:rgba(0,0,0,.1);--weui-BG-COLOR-ACTIVE:#ECECEC;--weui-GLYPH-WHITE-0:rgba(255,255,255,.8);--weui-GLYPH-WHITE-1:rgba(255,255,255,.5);--weui-GLYPH-WHITE-2:rgba(255,255,255,.3);--weui-GLYPH-WHITE-3:#FFFFFF}"""
             head.append(style)
+
+        for bd in soup.find_all(class_="share_content_page_bd"):
+            bd["style"] = (bd.get("style", "") + "width:500px !important").strip()
 
     def _extract_video_info(self, soup):
         video_info = []
@@ -537,7 +582,7 @@ h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:
             src = img.get("src", "")
             if not src.startswith("http"):
                 continue
-            if "mmbiz.qpic.cn" not in src and "mpcdn" not in src:
+            if "mmbiz.qpic.cn" not in src and "mpcdn" not in src and "mmecoa.qpic.cn" not in src and "res.wx.qq.com" not in src:
                 continue
 
             if src in downloaded:
@@ -547,13 +592,35 @@ h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:
             base_url = src.split("?")[0]
             ext = base_url.rsplit(".", 1)[-1].lower()
             if ext not in ("jpg", "jpeg", "png", "gif", "webp", "bmp"):
-                ext = "jpg"
+                ext = None
 
             try:
                 async with self.session.get(src, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 200:
                         data = await resp.read()
                         if len(data) > 500:
+                            if ext is None:
+                                ct = resp.headers.get("Content-Type", "")
+                                if "png" in ct:
+                                    ext = "png"
+                                elif "gif" in ct:
+                                    ext = "gif"
+                                elif "webp" in ct:
+                                    ext = "webp"
+                                elif "jpeg" in ct or "jpg" in ct:
+                                    ext = "jpg"
+                                else:
+                                    # Detect by magic bytes
+                                    if data[:4] == b'\x89PNG':
+                                        ext = "png"
+                                    elif data[:3] == b'GIF':
+                                        ext = "gif"
+                                    elif data[:4] in (b'RIFF',) and data[8:12] == b'WEBP':
+                                        ext = "webp"
+                                    elif data[:2] == b'\xff\xd8':
+                                        ext = "jpg"
+                                    else:
+                                        ext = "jpg"
                             idx += 1
                             local_name = f"img_{idx}.{ext}"
                             local_path = os.path.join(article_dir, local_name)
@@ -564,10 +631,54 @@ h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:
             except Exception:
                 pass
 
+        for video in soup.find_all("video"):
+            poster = video.get("poster", "")
+            if not poster.startswith("http"):
+                continue
+            if "mmbiz.qpic.cn" not in poster and "mpcdn" not in poster and "mmecoa.qpic.cn" not in poster and "res.wx.qq.com" not in poster:
+                continue
+            if poster in downloaded:
+                video["poster"] = downloaded[poster]
+                continue
+            try:
+                base_url = poster.split("?")[0]
+                ext = base_url.rsplit(".", 1)[-1].lower()
+                if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
+                    ext = None
+                async with self.session.get(poster, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        if len(data) > 500:
+                            if ext is None:
+                                ct = resp.headers.get("Content-Type", "")
+                                if "png" in ct:
+                                    ext = "png"
+                                elif "gif" in ct:
+                                    ext = "gif"
+                                elif "webp" in ct:
+                                    ext = "webp"
+                                elif data[:4] == b'\x89PNG':
+                                    ext = "png"
+                                elif data[:3] == b'GIF':
+                                    ext = "gif"
+                                elif data[:2] == b'\xff\xd8':
+                                    ext = "jpg"
+                                else:
+                                    ext = "jpg"
+                            idx += 1
+                            local_name = f"poster_{idx}.{ext}"
+                            local_path = os.path.join(article_dir, local_name)
+                            with open(local_path, "wb") as fh:
+                                fh.write(data)
+                            video["poster"] = local_name
+                            downloaded[poster] = local_name
+            except Exception:
+                pass
+
         bg_urls = set()
         for tag in soup.find_all(style=True):
             style_val = tag.get("style", "")
-            for m in re.finditer(r'background-image:\s*url\(["\']?(https?://[^"\')]+(?:mmbiz\.qpic\.cn|mpcdn)[^"\')]*)["\']?\)', style_val):
+            for m in re.finditer(r'background-image:\s*url\(["\']?(https?://[^"\')]+(?:mmbiz\.qpic\.cn|mpcdn|mmecoa\.qpic\.cn|res\.wx\.qq\.com)[^"\')]*)["\']?\)', style_val):
                 bg_urls.add(m.group(1))
 
         for url in bg_urls:
@@ -581,7 +692,21 @@ h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:
                             idx += 1
                             ext = url.split("?")[0].rsplit(".", 1)[-1].lower()
                             if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
-                                ext = "jpg"
+                                ct = resp.headers.get("Content-Type", "")
+                                if "png" in ct:
+                                    ext = "png"
+                                elif "gif" in ct:
+                                    ext = "gif"
+                                elif "webp" in ct:
+                                    ext = "webp"
+                                elif data[:4] == b'\x89PNG':
+                                    ext = "png"
+                                elif data[:3] == b'GIF':
+                                    ext = "gif"
+                                elif data[:2] == b'\xff\xd8':
+                                    ext = "jpg"
+                                else:
+                                    ext = "jpg"
                             local_name = f"bg_{idx}.{ext}"
                             local_path = os.path.join(article_dir, local_name)
                             with open(local_path, "wb") as fh:
@@ -596,6 +721,64 @@ h1.rich_media_title{font-size:20px!important;padding:12px 16px!important;margin:
                 for url, local_name in downloaded.items():
                     style_val = style_val.replace(url, local_name)
                 tag["style"] = style_val
+
+        lazy_bg_urls = {}
+        for svg in soup.find_all(attrs={"data-lazy-bgimg": True}):
+            url = svg.get("data-lazy-bgimg", "")
+            if not url or "mmbiz.qpic.cn" not in url:
+                continue
+            if url in lazy_bg_urls:
+                svg["data-lazy-bgimg"] = lazy_bg_urls[url]
+                self._update_svg_bg(svg, lazy_bg_urls[url])
+                continue
+            try:
+                base_url = url.split("?")[0]
+                ext = base_url.rsplit(".", 1)[-1].lower()
+                if ext not in ("jpg", "jpeg", "png", "gif", "webp", "bmp"):
+                    ext = None
+                async with self.session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        if len(data) > 500:
+                            if ext is None:
+                                ct = resp.headers.get("Content-Type", "")
+                                if "png" in ct:
+                                    ext = "png"
+                                elif "gif" in ct:
+                                    ext = "gif"
+                                elif "webp" in ct:
+                                    ext = "webp"
+                                elif data[:4] == b'\x89PNG':
+                                    ext = "png"
+                                elif data[:3] == b'GIF':
+                                    ext = "gif"
+                                elif data[:2] == b'\xff\xd8':
+                                    ext = "jpg"
+                                else:
+                                    ext = "jpg"
+                            idx += 1
+                            local_name = f"svg_{idx}.{ext}"
+                            local_path = os.path.join(article_dir, local_name)
+                            with open(local_path, "wb") as fh:
+                                fh.write(data)
+                            lazy_bg_urls[url] = local_name
+                            svg["data-lazy-bgimg"] = local_name
+                            self._update_svg_bg(svg, local_name)
+            except Exception:
+                pass
+
+    def _update_svg_bg(self, svg, local_name):
+        style_val = svg.get("style", "")
+        if not style_val:
+            svg["style"] = f"background-image: url({local_name}); background-size: cover; background-repeat: no-repeat;"
+            return
+        if re.search(r'url\(["\']?data:', style_val):
+            style_val = re.sub(r'url\(["\']?[^"\')\s]+["\']?\)', f'url({local_name})', style_val, count=1)
+        elif "background-image" not in style_val:
+            style_val = f"background-image: url({local_name}); background-size: cover; background-repeat: no-repeat; " + style_val
+        else:
+            style_val = re.sub(r'background-image:\s*url\([^)]+\)', f'background-image: url({local_name})', style_val)
+        svg["style"] = style_val
 
     async def _download_cover(self, article, article_dir):
         cover_url = article.get("cover", "")

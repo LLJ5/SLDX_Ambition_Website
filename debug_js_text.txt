@@ -1,0 +1,4 @@
+  File "<string>", line 13
+    print(f'  img src: {img.get(\
+                               ^
+SyntaxError: '(' was never closed

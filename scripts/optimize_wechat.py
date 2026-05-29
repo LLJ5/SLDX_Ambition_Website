@@ -11,7 +11,7 @@ Steps:
 6. Generate metadata JSON for VitePress
 """
 
-import os, re, hashlib, shutil, json, subprocess
+import os, re, hashlib, shutil, json, subprocess, urllib.request, html
 from collections import defaultdict
 from pathlib import Path
 
@@ -27,22 +27,125 @@ JPEG_QUALITY = 75
 def get_html_files():
     return sorted(ARTICLES.glob('*/index.html'))
 
-# ─── Step 1: CSS Deduplication ───────────────────────────────────────
+# ─── Step 0: Download missing SVG lazy-bgimg images ──────────────────
+
+def fix_svg_lazy_bgimg():
+    """
+    Some articles have SVG elements with data-lazy-bgimg pointing to
+    remote WeChat CDN URLs that weren't downloaded. Download them now
+    and update both data-lazy-bgimg and background-image in style.
+    """
+    print("Scanning for SVG lazy-bgimg images...")
+    html_files = list(ARTICLES.glob('*/index.html'))
+    total_downloaded = 0
+
+    for fp in html_files:
+        content = fp.read_text(encoding='utf-8')
+        urls = re.findall(r'data-lazy-bgimg="(https?://[^"]*mmbiz\.qpic\.cn[^"]*)"', content)
+        if not urls:
+            continue
+
+        article_dir = fp.parent
+        url_to_local = {}
+        changed = False
+
+        for url in urls:
+            if url in url_to_local:
+                continue
+            clean_url = html.unescape(url)
+            base_url = clean_url.split('?')[0]
+            ext = base_url.rsplit('.', 1)[-1].lower()
+            if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'):
+                ext = None
+            try:
+                req = urllib.request.Request(clean_url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': 'https://mp.weixin.qq.com/',
+                })
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = resp.read()
+                    if len(data) > 500:
+                        if ext is None:
+                            ct = resp.headers.get('Content-Type', '')
+                            if 'png' in ct:
+                                ext = 'png'
+                            elif 'gif' in ct:
+                                ext = 'gif'
+                            elif 'webp' in ct:
+                                ext = 'webp'
+                            elif data[:4] == b'\x89PNG':
+                                ext = 'png'
+                            elif data[:3] == b'GIF':
+                                ext = 'gif'
+                            elif data[:2] == b'\xff\xd8':
+                                ext = 'jpg'
+                            else:
+                                ext = 'jpg'
+                        local_name = f'svg_{len(list(article_dir.glob("svg_*")))+1}.{ext}'
+                        local_path = article_dir / local_name
+                        local_path.write_bytes(data)
+                        url_to_local[url] = local_name
+                        total_downloaded += 1
+            except Exception:
+                pass
+
+        if not url_to_local:
+            continue
+
+        for url, local_name in url_to_local.items():
+            content = content.replace(f'data-lazy-bgimg="{url}"', f'data-lazy-bgimg="{local_name}"')
+
+        def replace_svg_bg(match):
+            svg_attr = match.group(0)
+            for url, local_name in url_to_local.items():
+                svg_attr = svg_attr.replace(url, local_name)
+            lazy_match = re.search(r'data-lazy-bgimg="([^"]+)"', svg_attr)
+            local_name = lazy_match.group(1) if lazy_match else ""
+            style_match = re.search(r'style="([^"]*)"', svg_attr) or re.search(r"style='([^']*)'", svg_attr)
+            if style_match and local_name:
+                style_val = style_match.group(1)
+                if 'background-image' in style_val:
+                    style_val = re.sub(r'background-image:\s*url\([^)]+\)',
+                                       f'background-image: url({local_name})', style_val)
+                else:
+                    style_val = f'background-image: url({local_name}); background-size: cover; background-repeat: no-repeat; ' + style_val
+                svg_attr = (svg_attr[:style_match.start(1)] + style_val +
+                           svg_attr[style_match.end(1):])
+            return svg_attr
+
+        content = re.sub(r'<svg[^>]*data-lazy-bgimg="[^"]*"[^>]*>', replace_svg_bg, content)
+        fp.write_text(content, encoding='utf-8')
+        changed = True
+
+        if changed:
+            print(f"  {fp.parent.name}: downloaded {len(url_to_local)} SVG images")
+
+    print(f"  Total: {total_downloaded} SVG images downloaded\n")
+
+
+
+
+def _normalize_style_block(block):
+    return re.sub(r'\s+id="[^"]*"', '', block, count=1)
 
 def analyze_and_extract_css(html_files):
     block_counts = defaultdict(int)
     block_sample = {}
+    block_originals = defaultdict(set)
     print(f"Analyzing {len(html_files)} HTML files...")
     for fp in html_files:
         html = fp.read_text(encoding='utf-8')
         blocks = re.findall(r'<style[^>]*>.*?</style>', html, re.DOTALL)
-        seen = set()
+        seen_norm = set()
         for b in blocks:
-            h = hashlib.md5(b.encode()).hexdigest()
-            if h not in seen:
-                block_counts[h] += 1
-                block_sample[h] = b
-                seen.add(h)
+            nb = _normalize_style_block(b)
+            nh = hashlib.md5(nb.encode()).hexdigest()
+            if nh not in seen_norm:
+                block_counts[nh] += 1
+                if nh not in block_sample:
+                    block_sample[nh] = nb
+                block_originals[nh].add(b)
+                seen_norm.add(nh)
     threshold = int(len(html_files) * MIN_COVERAGE)
     common = sorted(
         [(h, cnt, block_sample[h]) for h, cnt in block_counts.items() if cnt >= threshold],
@@ -58,16 +161,19 @@ def analyze_and_extract_css(html_files):
         css_map[h] = fname
         print(f"  {fname}: {len(inner):,} bytes ({cnt} files)")
     block_map = {h: block_sample[h] for h, cnt, _ in common}
-    return css_map, block_map
+    return css_map, block_map, block_originals
 
-def rewrite_html(html_files, css_map, block_content):
+def rewrite_html(html_files, css_map, block_originals):
     print("Rewriting HTML files...")
     saved = 0
     for i, fp in enumerate(html_files):
         html = fp.read_text(encoding='utf-8')
         orig = len(html)
         for h in css_map:
-            html = html.replace(block_content[h], f'<link rel="stylesheet" href="../_shared/{css_map[h]}">')
+            for original in block_originals.get(h, []):
+                if original in html:
+                    html = html.replace(original, f'<link rel="stylesheet" href="../_shared/{css_map[h]}">')
+                    break
         if orig != len(html):
             fp.write_text(html, encoding='utf-8')
             saved += orig - len(html)
@@ -144,7 +250,7 @@ def _compress_one(args):
 def compress_images():
     """Resize large images, compress JPEGs, backup originals using multiprocessing."""
     image_files = []
-    for pat in ('*/cover.*', '*/img_*.*', '*/bg_*.*'):
+    for pat in ('*/cover.*', '*/img_*.*', '*/bg_*.*', '*/svg_*.*', '*/rm_*.*', '*/poster_*.*'):
         image_files.extend(ARTICLES.glob(pat))
     if not image_files:
         return
@@ -229,7 +335,8 @@ def minify_html():
 def generate_metadata():
     """Generate metadata JSON for VitePress data loader."""
     print("Generating metadata...")
-    SKIP = ['2026-05-22_公众号运营回归个人通知', '2025-09-15_我们搬家啦', '2025-06-03_沈理电协Ambition战队官网发布', '2025-06-18_大疆_2026_校招', '2024-06-13_大疆_2025', '2024-07-04_DJI_大疆', '2024-07-07_测一测你来_DJI', '2022-04-25_下一场，去大疆', '2018-04-13_DJI大疆创新RoboMaster机器人夏令营', '2018-03-09_RoboMaster2018最全招聘']
+    SKIP = ['2026-05-22_公众号运营回归个人通知', '2025-09-15_我们搬家啦', '2025-06-03_沈理电协Ambition战队官网发布', '2025-06-18_大疆_2026_校招', '2024-06-13_大疆_2025', '2024-07-04_DJI_大疆', '2024-07-07_测一测你来_DJI', '2022-04-25_下一场，去大疆', '2018-04-13_DJI大疆创新RoboMaster机器人夏令营', '2018-03-09_RoboMaster2018最全招聘', '2025-03-06_机甲大师十周年徽章，即将发布', '2015-10-01_沈阳周边竟隐藏了十个小众旅游天堂！美得窒息！十一走起！']
+    PROTECTED = ['2024-12-15_冬日畅言___RM线下交流会', '2025-05-31_战队总结视频']
     articles = []
     for entry_dir in sorted(ARTICLES.iterdir()):
         if not entry_dir.is_dir() or entry_dir.name.startswith('_'):
@@ -251,7 +358,7 @@ def generate_metadata():
             content = html_path.read_text(encoding='utf-8')
             tm = re.search(r'<title>(.*?)</title>', content)
             if tm:
-                title = tm.group(1).strip()
+                title = html.unescape(tm.group(1).strip())
 
         has_cover = False
         cover_ext = None
@@ -261,13 +368,18 @@ def generate_metadata():
                 cover_ext = ext
                 break
 
+        has_video = False
+        if html_path.exists() and content:
+            has_video = bool(re.search(r'<video\b|<mpvideo\b|video_\w+\.mp4|v\.qq\.com|bilibili\.com/player', content))
+
         articles.append({
             'date': date_str,
             'year': int(date_str[:4]),
             'title': title,
             'dir': entry_dir.name,
             'hasCover': has_cover,
-            'coverExt': cover_ext
+            'coverExt': cover_ext,
+            'hasVideo': has_video
         })
 
     articles.sort(key=lambda a: a['date'], reverse=True)
@@ -291,10 +403,14 @@ def main():
     html_files = get_html_files()
     print(f"\nFound {len(html_files)} article HTML files\n")
 
+    # Step 0: Fix SVG lazy-bgimg
+    print("[0/6] Fix SVG lazy-bgimg Images")
+    fix_svg_lazy_bgimg()
+
     # Step 1: CSS Dedup
     print("[1/6] CSS Deduplication")
-    css_map, block_content = analyze_and_extract_css(html_files)
-    rewrite_html(html_files, css_map, block_content)
+    css_map, block_content, block_originals = analyze_and_extract_css(html_files)
+    rewrite_html(html_files, css_map, block_originals)
 
     # Step 2: Font Dedup
     print("\n[2/6] Font Deduplication")

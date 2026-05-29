@@ -15,6 +15,8 @@ const SKIP_ARTICLES = [
   '2022-04-25_下一场，去大疆',
   '2018-04-13_DJI大疆创新RoboMaster机器人夏令营',
   '2018-03-09_RoboMaster2018最全招聘',
+  '2025-03-06_机甲大师十周年徽章，即将发布',
+  '2015-10-01_沈阳周边竟隐藏了十个小众旅游天堂！美得窒息！十一走起！',
 ]
 
 function shouldSkip(dirName) {
@@ -67,7 +69,7 @@ function scanDirectories() {
       let hasVideo = false
       try {
         const html = fs.readFileSync(htmlPath, 'utf-8')
-        hasVideo = /<video\b|<mpvideo\b|video_\w+\.mp4|v\.qq\.com/.test(html)
+        hasVideo = /<video\b|<mpvideo\b|video_\w+\.mp4|v\.qq\.com|bilibili\.com\/player/.test(html)
       } catch {}
 
       let title = null

@@ -4,5 +4,15 @@
     "download_videos": true,
     "max_articles": 0,
     "headless": true,
-    "login_timeout_ms": 180000
+    "login_timeout_ms": 180000,
+    "protected_articles": [
+        "2024-12-15_冬日畅言___RM线下交流会",
+        "2025-05-31_战队总结视频",
+        "2024-04-20_Ambition战队2024辽宁站混剪来啦！",
+        "2024-05-22_3D打印耗材赞助开箱——叁生万物",
+        "2024-06-12_Ambition战队24赛季对抗赛MV",
+        "2024-10-24_赞助开箱视频一艾迈斯",
+        "2024-11-26_RoboMaster官方物资开箱视频",
+        "2025-03-24_2.7.5_根本放不下"
+    ]
 }
