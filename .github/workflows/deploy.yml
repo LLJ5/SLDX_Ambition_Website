@@ -52,7 +52,7 @@ jobs:
         python-version: '3.12'
         cache: 'pip'
     - name: Install Python deps
-      run: pip install Pillow beautifulsoup4 lxml
+      run: pip3 install Pillow beautifulsoup4 lxml
     - name: Optimize wechat articles
       run: python3 scripts/optimize_wechat.py
     - name: Build with VitePress
