@@ -1,6 +1,6 @@
 ---
 layout: page
-title: 公众号文章存档
+title: 历史推文
 ---
 
 <script setup>
@@ -63,8 +63,8 @@ function formatTitle(t) {
 
 <div class="wx-archive">
 <div class="wx-header">
-<h1>公众号文章存档</h1>
-<p class="wx-subtitle">共 {{ data.articles.length }} 篇文章，记录沈理电协的成长历程</p>
+<h1>历史推文</h1>
+<p class="wx-subtitle">共 {{ data.articles.length }} 篇历史文章，记录沈理电协的成长历程</p>
 </div>
 
 <div v-if="data.articles.length > 0">
@@ -102,9 +102,9 @@ function formatTitle(t) {
 
 <style scoped>
 .wx-archive { max-width: 880px; margin: 0 auto; }
-.wx-header { text-align: center; padding: 20px 0 10px; }
+.wx-header { text-align: center; padding: 40px 0 10px; }
 .wx-header h1 {
-  font-size: 1.8em; font-weight: 700;
+  font-size: 1.8em; font-weight: 700; line-height: 1.6;
   background: linear-gradient(135deg, var(--vp-c-brand-1), var(--vp-c-brand-2));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }

@@ -52,7 +52,7 @@ items: [
 ]
 },
 {
-text: '公众号存档',
+text: '历史推文',
 link: '/wechat',
 },
 ]
